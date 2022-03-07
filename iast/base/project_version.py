@@ -3,6 +3,8 @@ from django.db.models import Q
 from dongtai.models.project_version import IastProjectVersion
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
+from dongtai.models.project import IastProject
+from django.db import transaction
 
 class VersionModifySerializer(serializers.Serializer):
     version_id = serializers.CharField(
@@ -15,28 +17,25 @@ class VersionModifySerializer(serializers.Serializer):
     current_version = serializers.IntegerField(help_text=_(
         "Whether it is the current version, 1 means yes, 0 means no."))
 
-
-def version_modify(user, versionData=None):
-    if versionData is None:
-        return {
-            "status": "202",
-            "msg": _("Parameter error")
-        }
+@transaction.atomic
+def version_modify(user, auth_users, versionData=None):
     version_id = versionData.get("version_id", 0)
     project_id = versionData.get("project_id", 0)
     current_version = versionData.get("current_version", 0)
     version_name = versionData.get("version_name", "")
     description = versionData.get("description", "")
-    if not version_name or not project_id:
+    project = IastProject.objects.filter(user__in=auth_users,
+                                         id=project_id).only(
+                                             'id', 'user').first()
+    if not version_name or not project:
         return {
             "status": "202",
             "msg": _("Parameter error")
         }
     baseVersion = IastProjectVersion.objects.filter(
-        project_id=project_id,
+        project_id=project.id,
         version_name=version_name,
-        user=user,
-        status=1
+        status=1,
     )
     if version_id:
         baseVersion = baseVersion.filter(~Q(id=version_id))
@@ -47,7 +46,9 @@ def version_modify(user, versionData=None):
             "msg": _("Repeated version name")
         }
     if version_id:
-        version = IastProjectVersion.objects.filter(id=version_id, project_id=project_id, user=user, status=1).first()
+        version = IastProjectVersion.objects.filter(id=version_id,
+                                                    project_id=project.id,
+                                                    status=1).first()
         if not version:
             return {
                 "status": "202",
@@ -55,11 +56,17 @@ def version_modify(user, versionData=None):
             }
         else:
             version.update_time = int(time.time())
+            version.version_name = version_name
+            version.description = description
+            version.save()
     else:
-        version = IastProjectVersion.objects.create(project_id=project_id, user=user, status=1,
-                                                    current_version=current_version)
-    version.version_name = version_name
-    version.description = description
+        version,created = IastProjectVersion.objects.get_or_create(
+            project_id=project.id,
+            user=project.user,
+            current_version=current_version,
+            version_name=version_name,
+            description = description)
+    version.status=1
     version.save()
     return {
         "status": "201",

@@ -23,6 +23,7 @@ from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from iast.utils import extend_schema_with_envcheck, get_response_serializer
 import logging
+from dongtai.models.strategy import IastStrategyModel
 
 logger = logging.getLogger('dongtai-webapi')
 
@@ -253,19 +254,33 @@ def _serialize(api_route, agents):
     return item
 
 
+def serialize(api_route):
+    item = model_to_dict(api_route)
+    item['parameters'] = _get_parameters(api_route)
+    item['responses'] = _get_responses(api_route)
+    item['method'] = _get_api_method(item['method'])
+    return item
+
 def _get_vuls(uri, agents):
     vuls = IastVulnerabilityModel.objects.filter(
         uri=uri, agent_id__in=[_['id'] for _ in agents
                                ]).distinct().values('hook_type_id',
-                                                    'level_id').all()
+                                                    'level_id',
+                                                    'strategy_id').all()
     return [_get_hook_type(vul) for vul in vuls]
 
 
 def _get_hook_type(vul):
 
     hook_type = HookType.objects.filter(pk=vul['hook_type_id']).first()
+    hook_type_name = hook_type.name if hook_type else None
+    strategy = IastStrategyModel.objects.filter(pk=vul['strategy_id']).first()
+    strategy_name = strategy.vul_name if strategy else None
+    type_ = list(
+        filter(lambda x: x is not None, [strategy_name, hook_type_name]))
+    type_name = type_[0] if type_ else ''
     if hook_type:
-        return {'hook_type_name': hook_type.name, 'level_id': vul['level_id']}
+        return {'hook_type_name': type_name, 'level_id': vul['level_id']}
 
 
 def _get_parameters(api_route):

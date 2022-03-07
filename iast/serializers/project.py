@@ -7,12 +7,12 @@ from django.db.models import Count
 from rest_framework import serializers
 
 from dongtai.models.agent import IastAgent
-from dongtai.models.project import IastProject
+from dongtai.models.project import (IastProject, VulValidation)
 from dongtai.models.vul_level import IastVulLevel
 from dongtai.models.vulnerablity import IastVulnerabilityModel
 from dongtai.models.vulnerablity import IastVulnerabilityStatus
 from dongtai.utils import const
-
+from dongtai.utils.systemsettings import get_vul_validate
 
 class ProjectSerializer(serializers.ModelSerializer):
     vul_count = serializers.SerializerMethodField(
@@ -28,7 +28,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         model = IastProject
         fields = [
             'id', 'name', 'mode', 'vul_count', 'agent_count', 'owner',
-            'latest_time', 'agent_language'
+            'latest_time', 'agent_language', 'vul_validation'
         ]
 
     def get_agents(self, obj):
@@ -42,8 +42,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     def get_vul_count(self, obj):
         agents = self.get_agents(obj)
         vul_levels = IastVulnerabilityModel.objects.values('level').filter(
-            agent__in=agents,
-            status__name='已确认').annotate(total=Count('level'))
+            agent__in=agents).annotate(total=Count('level'))
         for vul_level in vul_levels:
             level = IastVulLevel.objects.get(id=vul_level['level'])
             vul_level['name'] = level.name_value
@@ -61,3 +60,4 @@ class ProjectSerializer(serializers.ModelSerializer):
         res = self.get_agents(obj).all().values_list(
             'language', flat=True).distinct()
         return list(res)
+

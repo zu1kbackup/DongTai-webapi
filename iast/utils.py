@@ -72,7 +72,7 @@ def extend_schema_with_envcheck(querys: list = [],
                                 **kwargs):
     def myextend_schema(func):
         import os
-        if os.getenv('environment', None) in ('TEST', 'DOC'):
+        if os.getenv('environment', None) in ('TEST', 'DOC') or os.getenv('DOC', None) == 'TRUE' :
             from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiTypes
             from drf_spectacular.utils import OpenApiResponse
             parameters = list(filter(lambda x: x, map(_filter_query, querys)))
@@ -200,10 +200,14 @@ def checkcover(api_route, agents, http_method=None):
             pk__in=http_method_ids).all().values_list('method')
         q = q & Q(http_method__in=http_methods)
     q = q & Q(uri_sha1=uri_hash)
-    if MethodPool.objects.filter(q)[0:1]:
+    if MethodPool.objects.filter(q).exists():
         return True
     return False
 
+def checkcover_batch(api_route, agents):
+    uri_hash = [hashlib.sha1(api_route.path.encode('utf-8')).hexdigest() for api_route in api_route.only('path')]
+    cover_count = MethodPool.objects.filter(uri_sha1__in=uri_hash,agent__in=agents).values('uri_sha1').distinct().count()
+    return cover_count
 
 def apiroute_cachekey(api_route, agents, http_method=None):
     agent_id = sha1(str([_['id'] for _ in agents]))

@@ -11,8 +11,8 @@ from dongtai.endpoint import UserEndPoint, R
 from rest_framework.authtoken.models import Token
 from django.utils.translation import gettext_lazy as _
 from dongtai.models.profile import IastProfile
-
-
+from iast.utils import get_openapi
+from requests.exceptions import ConnectionError
 
 logger = logging.getLogger('dongtai-webapi')
 
@@ -31,10 +31,18 @@ class AgentDownload(UserEndPoint):
             "python": {
                 "extension": "tar.gz",
                 "filename": "dongtai-agent-python.tar.gz"
+            },
+            "php": {
+                "extension": "tar.gz",
+                "filename": "php-agent.tar.gz"
+            },
+            "go": {
+                "extension": ".yaml",
+                "filename": "dongtai-go-agent-config.yaml"
             }
         }
 
-    def res_by_language(self,language, token, resp):
+    def res_by_language(self, language, token, resp):
         temp_filename = f'temp/dongtai-agent-{language}-{token["key"]}.{self.common_info[language]["extension"]}'
         with open(temp_filename, 'wb') as f:
             f.write(resp.content)
@@ -55,15 +63,19 @@ class AgentDownload(UserEndPoint):
         project_name = request.query_params.get('projectName', 'Demo Project')
         token, success = Token.objects.values('key').get_or_create(user=request.user)
         AGENT_SERVER_PROXY={'HOST':''}
-        APISERVER = IastProfile.objects.filter(key='apiserver').values_list('value',
-                                                            flat=True).first()       
-        AGENT_SERVER_PROXY['HOST'] = APISERVER if APISERVER is not None else ''
-        resp = requests.get(
+        AGENT_SERVER_PROXY['HOST'] = get_openapi()
+        try:
+            resp = requests.get(
             url=f'{AGENT_SERVER_PROXY["HOST"]}/api/v1/agent/download?url={base_url}&language={language}&projectName={project_name}',
             headers={
                 'Authorization': f'Token {token["key"]}'
             })
-        
+        except ConnectionError as e:
+            return R.failure(msg='conncet error,please check config.ini')
+        except Exception as e:
+            logger.error(e)
+            return R.failure(msg='download error,please check deployment')
+
         response = self.res_by_language(language, token, resp)
 
         return response

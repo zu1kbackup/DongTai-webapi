@@ -18,6 +18,7 @@ from dongtai.models.hook_type import HookType
 from django.db.models import Q
 from rest_framework import serializers
 from iast.utils import extend_schema_with_envcheck, get_response_serializer
+from dongtai.models.strategy import IastStrategyModel
 
 
 class ProjectSummaryQuerySerializer(serializers.Serializer):
@@ -99,7 +100,8 @@ class ProjectSummary(UserEndPoint):
     )
     def get(self, request, id):
         auth_users = self.get_auth_users(request.user)
-        project = IastProject.objects.filter(user__in=auth_users, id=id).first()
+        project = IastProject.objects.filter(user__in=auth_users,
+                                             id=id).first()
 
         if not project:
             return R.failure(status=203, msg=_('no permission'))
@@ -128,18 +130,36 @@ class ProjectSummary(UserEndPoint):
 
         agent_ids = [relation['id'] for relation in relations]
         queryset = IastVulnerabilityModel.objects.filter(
-            agent_id__in=agent_ids,
-            status_id=3).values("hook_type_id", "level_id", "latest_time")
+            agent_id__in=agent_ids).values("hook_type_id", 'strategy_id', "level_id",
+                                "latest_time")
         q = ~Q(hook_type_id=0)
         queryset = queryset.filter(q)
         typeArr = {}
         typeLevel = {}
         levelCount = {}
+        strategy_ids = queryset.values_list('strategy_id',
+                                            flat=True).distinct()
+        strategys = {
+            strategy['id']: strategy
+            for strategy in IastStrategyModel.objects.filter(
+                pk__in=strategy_ids).values('id', 'vul_name').all()
+        }
+        hook_type_ids = queryset.values_list('hook_type_id',
+                                             flat=True).distinct()
+        hooktypes = {
+            hooktype['id']: hooktype
+            for hooktype in HookType.objects.filter(
+                pk__in=hook_type_ids).values('id', 'name').all()
+        }
         if queryset:
             for one in queryset:
-                hook_type = HookType.objects.filter(
-                    pk=one['hook_type_id']).first()
-                one['type'] = hook_type.name if hook_type else ''
+                hook_type = hooktypes.get(one['hook_type_id'], None)
+                hook_type_name = hook_type['name'] if hook_type else None
+                strategy = strategys.get(one['strategy_id'], None)
+                strategy_name = strategy['vul_name'] if strategy else None
+                type_ = list(
+                    filter(lambda x: x is not None, [strategy_name, hook_type_name]))
+                one['type']= type_[0] if type_ else ''
                 typeArr[one['type']] = typeArr.get(one['type'], 0) + 1
                 typeLevel[one['type']] = one['level_id']
                 levelCount[one['level_id']] = levelCount.get(

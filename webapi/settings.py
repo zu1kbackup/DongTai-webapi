@@ -35,7 +35,7 @@ def ranstr(num):
 SECRET_KEY = ranstr(50)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("debug", 'false') == 'true'
+DEBUG = os.environ.get("debug", 'false') == 'true' #or os.getenv('environment', None) in ('TEST',)
 
 # READ CONFIG FILE
 config = ConfigParser()
@@ -63,9 +63,26 @@ INSTALLED_APPS = [
     'corsheaders',
     'captcha',
     'dongtai',
-    'iast',
     'modeltranslation',
 ]
+def get_installed_apps():
+    from os import walk, chdir, getcwd
+    previous_path = getcwd()
+    master = []
+    APPS_ROOT_PATH = BASE_DIR
+    chdir(APPS_ROOT_PATH)
+    for root, directories, files in walk(top=getcwd(), topdown=False):
+        for file_ in files:
+            if 'apps.py' in file_ and len(
+                    list(
+                        filter(lambda x: x != '',
+                               root.replace(getcwd(), '').split('/')))) == 1:
+                app_path = f"{root.replace(BASE_DIR + '/', '').replace('/', '.')}"
+                master.append(app_path)
+    chdir(previous_path)
+    return master
+CUSTOM_APPS = get_installed_apps()
+INSTALLED_APPS.extend(CUSTOM_APPS)
 
 
 MODELTRANSLATION_LANGUAGES = ('en', 'zh')
@@ -102,6 +119,9 @@ USE_I18N = True
 USE_L10N = True
 MODELTRANSLATION_FALLBACK_LANGUAGES = ('zh', 'en')
 MIDDLEWARE = [
+    'django.middleware.gzip.GZipMiddleware',
+    'utils.CSPMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -111,7 +131,6 @@ MIDDLEWARE = [
     'xff.middleware.XForwardedForMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
 XFF_TRUSTED_PROXY_DEPTH = 20
@@ -319,11 +338,24 @@ ENABLE_SSL = config.get('smtp', 'ssl') == 'True'
 ADMIN_EMAIL = config.get('smtp', 'cc_addr')
 SESSION_COOKIE_DOMAIN = None
 CSRF_COOKIE_DOMAIN = None
+
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+TEST_RUNNER = 'test.NoDbTestRunner'
+
+
+if os.getenv('environment', None) == 'TEST' or os.getenv('REQUESTLOG',
+                                                         None) == 'TRUE':
+    MIDDLEWARE.insert(0, 'apitimelog.middleware.RequestLogMiddleware')
+    
+
 if os.getenv('environment', None) == 'TEST' or os.getenv('PYTHONAGENT', None) == 'TRUE':
-    MIDDLEWARE.append('dongtai_agent_python.middlewares.django_middleware.FireMiddleware')
+    MIDDLEWARE.insert(0, 'dongtai_agent_python.middlewares.django_middleware.FireMiddleware')
 if os.getenv('environment', None) == 'TEST' or os.getenv('SAVEEYE', None) == 'TRUE':
     CAPTCHA_NOISE_FUNCTIONS = ('captcha.helpers.noise_null',)
-if os.getenv('environment', 'PROD') in ('TEST', 'DOC'):
+if os.getenv('environment', 'PROD') in ('TEST', 'DOC') or os.getenv('DOC', None) == 'TRUE':
     from django.utils.translation import gettext_lazy as _
     INSTALLED_APPS.append('drf_spectacular')
     SPECTACULAR_SETTINGS = {
@@ -344,8 +376,19 @@ The Token method is recommended here, and users can find it in the Agent install
     }
     REST_FRAMEWORK[
         'DEFAULT_SCHEMA_CLASS'] = 'drf_spectacular.openapi.AutoSchema'
+
+
+if os.getenv('environment', None) == 'TEST' or os.getenv('CPROFILE',
+                                                         None) == 'TRUE':
+    DJANGO_CPROFILE_MIDDLEWARE_REQUIRE_STAFF = False
+    MIDDLEWARE.append(
+        'django_cprofile_middleware.middleware.ProfilerMiddleware')
+
+SCA_BASE_URL = config.get('sca', 'base_url')
+
 if os.getenv('environment', None) in ('TEST', 'PROD'):
     SESSION_COOKIE_DOMAIN = config.get('other',
                                             'demo_session_cookie_domain')
     CSRF_COOKIE_DOMAIN = SESSION_COOKIE_DOMAIN
     DOMAIN = config.get('other', 'domain')
+    

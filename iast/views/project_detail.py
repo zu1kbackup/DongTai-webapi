@@ -7,7 +7,8 @@
 from dongtai.endpoint import R
 from dongtai.endpoint import UserEndPoint
 from dongtai.models.agent import IastAgent
-from dongtai.models.project import IastProject
+from dongtai.models.project import (IastProject, VulValidation)
+from dongtai.utils.systemsettings import get_vul_validate
 from dongtai.utils import const
 from django.utils.translation import gettext_lazy as _
 
@@ -27,6 +28,7 @@ class ProjectsResponseDataSerializer(serializers.Serializer):
     versionData = ProjectsVersionDataSerializer(
         help_text=_('Version information about the project'))
     id = serializers.IntegerField(help_text=_("The id of the project"))
+    vul_validation = serializers.IntegerField(help_text="vul validation switch")
 
 
 _ResponseSerializer = get_response_serializer(
@@ -58,8 +60,10 @@ class ProjectDetail(UserEndPoint):
             agents = [{"id": relation.id, "name": relation.token} for relation in relations]
             if project.scan:
                 scan_id = project.scan.id
+                scan_name = project.scan.name
             else:
                 scan_id = 0
+                scan_name = ''                
 
             current_project_version = get_project_version(project.id, auth_users)
             return R.success(data={
@@ -67,8 +71,14 @@ class ProjectDetail(UserEndPoint):
                 "id": project.id,
                 "mode": project.mode,
                 "scan_id": scan_id,
+                "scan_name": scan_name,
                 "agents": agents,
                 "versionData": current_project_version,
+                "vul_validation": project.vul_validation,
+                'base_url':project.base_url,
+                "test_req_header_key":project.test_req_header_key,
+                "test_req_header_value":project.test_req_header_value,
             })
         else:
             return R.failure(status=203, msg=_('no permission'))
+

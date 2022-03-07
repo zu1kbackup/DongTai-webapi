@@ -11,6 +11,7 @@ from dongtai.models.vulnerablity import IastVulnerabilityModel
 from dongtai.models.vulnerablity import IastVulnerabilityStatus
 from dongtai.models.hook_type import HookType
 from django.utils.translation import gettext_lazy as _
+from dongtai.models.strategy import IastStrategyModel
 from dongtai.models.vul_level import IastVulLevel
 
 
@@ -29,13 +30,14 @@ class VulSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def split_container_name(name):
-        result = ""
+        if name is None:
+            return ""
         if '/' in name:
-            result = name.split('/')[0].lower().strip()
+            return name.split('/')[0].lower().strip()
         elif ' ' in name:
             names = name.split(' ')[:-1]
-            result = ' '.join(names).lower().strip()
-        return result
+            return ' '.join(names).lower().strip()
+        return name
 
     def get_language(self, obj):
         if obj['agent_id'] not in self.AGENT_LANGUAGE_MAP:
@@ -46,7 +48,12 @@ class VulSerializer(serializers.ModelSerializer):
 
     def get_type(self, obj):
         hook_type = HookType.objects.filter(pk=obj['hook_type_id']).first()
-        return hook_type.name if hook_type else ''
+        hook_type_name = hook_type.name if hook_type else None
+        strategy = IastStrategyModel.objects.filter(pk=obj['strategy_id']).first()
+        strategy_name = strategy.vul_name if strategy else None
+        type_ = list(
+            filter(lambda x: x is not None, [strategy_name, hook_type_name]))
+        return type_[0] if type_ else ''
 
     def get_status(self, obj):
         status = IastVulnerabilityStatus.objects.filter(
@@ -66,7 +73,12 @@ class VulForPluginSerializer(serializers.ModelSerializer):
 
     def get_type(self, obj):
         hook_type = HookType.objects.filter(pk=obj['hook_type_id']).first()
-        return hook_type.name if hook_type else ''
+        hook_type_name = hook_type.name if hook_type else None
+        strategy = IastStrategyModel.objects.filter(pk=obj['strategy_id']).first()
+        strategy_name = strategy.vul_name if strategy else None
+        type_ = list(
+            filter(lambda x: x is not None, [strategy_name, hook_type_name]))
+        return type_[0] if type_ else ''
 
     def get_level(self, obj):
         level = IastVulLevel.objects.filter(pk=obj['level_id']).first()
@@ -99,3 +111,10 @@ class VulSummaryProjectSerializer(serializers.Serializer):
     count = serializers.IntegerField(help_text=_(
         "The number of vulnerabilities corresponding to the project"))
     id = serializers.IntegerField(help_text=_("The id of the project"))
+
+
+class VulSummaryResponseDataSerializer(serializers.Serializer):
+    language = VulSummaryLanguageSerializer(many=True)
+    level = VulSummaryLevelSerializer(many=True)
+    type = VulSummaryTypeSerializer(many=True)
+    projects = VulSummaryProjectSerializer(many=True)

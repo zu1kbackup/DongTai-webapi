@@ -174,7 +174,12 @@ class VulDetail(UserEndPoint):
     def get_vul(self, auth_agents):
         vul = IastVulnerabilityModel.objects.filter(id=self.vul_id, agent__in=auth_agents).first()
         hook_type = HookType.objects.filter(pk=vul.hook_type_id).first() if vul is not None else None
-        vul.type = hook_type.name if hook_type else ''
+        hook_type_name = hook_type.name if hook_type else None
+        strategy = IastStrategyModel.objects.filter(pk=vul.strategy_id).first()
+        strategy_name = strategy.vul_name if strategy else None
+        type_ = list(
+            filter(lambda x: x is not None, [strategy_name, hook_type_name]))
+        vul.type = type_[0] if type_ else ''
         status = IastVulnerabilityStatus.objects.filter(pk=vul.status_id).first()
         vul.status_ = status.name if status else ''
         agent = vul.agent
@@ -232,9 +237,9 @@ class VulDetail(UserEndPoint):
             'req_header':
             htmlescape(self.parse_request(vul.http_method, vul.uri, vul.req_params,
                                vul.http_protocol, vul.req_header,
-                               vul.req_data)),
+                               vul.req_data)) if is_need_http_detail(strategy_name) else '',
             'response':
-            htmlescape(self.parse_response(vul.res_header, vul.res_body)),
+            htmlescape(self.parse_response(vul.res_header, vul.res_body)) if is_need_http_detail(strategy_name) else '',
             'graph':
             self.parse_graphy(vul.full_stack),
             'context_path':
@@ -246,11 +251,12 @@ class VulDetail(UserEndPoint):
             'taint_value':
             vul.taint_value,
             'param_name':
-            json.loads(vul.param_name) if vul.param_name else {},
+            parse_param_name(vul.param_name) if vul.param_name else {},
             'method_pool_id':
             vul.method_pool_id,
             'project_id':
-            project_id
+            project_id,
+            'is_need_http_detail': is_need_http_detail(strategy_name),
         }
 
     def get_strategy(self):
@@ -363,6 +369,15 @@ def htmlescape(string):
                                     "6350be97a65823fc42ddd9dc78e17ddf13ff693b",
                                     "<em>")
 
+def is_need_http_detail(name):
+    return False if name in ['硬编码'] else True
+
+def parse_param_name(param_name):
+    try:
+        res = json.loads(param_name)
+        return res
+    except:
+        return {}
 
 if __name__ == '__main__':
     vul = VulDetail()

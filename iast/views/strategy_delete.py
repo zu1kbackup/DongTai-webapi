@@ -14,6 +14,7 @@ from dongtai.models.hook_strategy import HookStrategy
 from dongtai.utils import const
 from django.utils.translation import gettext_lazy as _
 from iast.utils import extend_schema_with_envcheck, get_response_serializer
+from dongtai.endpoint import TalentAdminEndPoint
 
 from rest_framework import serializers
 class _StrategyResponseDataStrategySerializer(serializers.Serializer):
@@ -21,7 +22,9 @@ class _StrategyResponseDataStrategySerializer(serializers.Serializer):
 
 _ResponseSerializer = get_response_serializer(
     data_serializer=_StrategyResponseDataStrategySerializer(many=True), )
-class StrategyDelete(UserEndPoint):
+
+DELETE = 'delete'
+class StrategyDelete(TalentAdminEndPoint):
 
     @extend_schema_with_envcheck(
         tags=[_('Strategy')],
@@ -32,13 +35,17 @@ class StrategyDelete(UserEndPoint):
         response_schema=_ResponseSerializer,
     )
     def delete(self, request, id_):
-        hook_type = HookType.objects.filter(pk=id_).first()
-        if not hook_type:
+        strategy = IastStrategyModel.objects.filter(id=id_).first()
+        hook_types = HookType.objects.filter(vul_strategy=strategy).all()
+        if not strategy:
             return R.failure(msg=_('This strategy does not exist'))
-        hook_strategies = hook_type.strategies.all()
-        for hook_strategy in hook_strategies:
-            hook_strategy.enable = const.DELETE
-            hook_strategy.save()
-        hook_type.enable = const.DELETE
-        hook_type.save()
+        strategy.state = DELETE
+        strategy.save()
+        for hook_type in hook_types:
+            hook_strategies = hook_type.strategies.all()
+            for hook_strategy in hook_strategies:
+                hook_strategy.enable = const.DELETE
+                hook_strategy.save()
+            hook_type.enable = const.DELETE
+            hook_type.save()
         return R.success(data={"id": id_})

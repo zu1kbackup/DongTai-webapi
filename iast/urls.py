@@ -76,7 +76,7 @@ from iast.views.sca_summary import ScaSummary
 from iast.views.scas import ScaList
 from iast.views.strategy_disable import StrategyDisableEndpoint
 from iast.views.strategy_enable import StrategyEnableEndpoint
-from iast.views.strategys import StrategyEndpoint
+from iast.views.strategys import StrategysEndpoint, StrategyEndpoint
 from iast.views.strategys_add import StrategyAdd
 from iast.views.strategys_list import StrategyList
 from iast.views.strategys_type import StrategyType
@@ -100,6 +100,8 @@ from iast.views.vul_request_replay import RequestReplayEndPoint
 from iast.views.vul_sidebar_index import VulSideBarList
 from iast.views.vul_status import VulStatus
 from iast.views.vul_summary import VulSummary
+from iast.views.vul_summary_type import VulSummaryType
+from iast.views.vul_summary_project import VulSummaryProject
 from iast.views.vuls import VulsEndPoint
 from iast.views.vulnerability_status import VulnerabilityStatusView
 from iast.views.version_update import MethodPoolVersionUpdate
@@ -118,6 +120,27 @@ from iast.views.messages_del import MessagesDelEndpoint
 from iast.views.messages_send import MessagesSendEndpoint
 from iast.views.agent_alias_modified import AgentAliasModified
 from iast.views.engine_method_pool_time_range import MethodPoolTimeRangeProxy
+from iast.views.vul_levels import VulLevelList
+from iast.views.sensitive_info_rule import (
+    SensitiveInfoRuleViewSet,
+    SensitiveInfoPatternTypeView,
+    SensitiveInfoPatternValidationView,
+    SensitiveInfoRuleBatchView,
+    SensitiveInfoRuleAllView,
+)
+from iast.views.scan_strategys import (
+    ScanStrategyViewSet,
+    ScanStrategyRelationProject,
+    ScanStrategyBatchView,
+    ScanStrategyAllView,
+)
+from iast.views.sca_export import ScaExport
+
+from iast.views.details_id import (AgentListWithid, ProjectListWithid,
+                                   ScaListWithid, VulsListWithid)
+from iast.views.vul_recheck_v2 import VulReCheckv2
+
+
 urlpatterns = [
     path("talents", TalentEndPoint.as_view()),
     path("talent/<int:pk>", TalentEndPoint.as_view()),
@@ -146,12 +169,10 @@ urlpatterns = [
     path('projects', Projects.as_view()),
     path('projects/summary/<int:id>', ProjectSummary.as_view()),
     path('project/engines/<int:pid>', ProjectEngines.as_view()),
-
     path('project/report/async_add', ProjectReportSyncAdd.as_view()),
     path('project/report/list', ProjectReportList.as_view()),
     path('project/report/download', ProjectReportDownload.as_view()),
     path('project/report/delete', ProjectReportDelete.as_view()),
-
     path('project/export', ProjectReportExport.as_view()),
     path('project/search', ProjectSearch.as_view()),
     path('project/version/add', ProjectVersionAdd.as_view()),
@@ -163,6 +184,8 @@ urlpatterns = [
     path('project/version/check', UpdateProjectVersion.as_view()),
     path('vulns', VulsEndPoint.as_view()),
     path('vuln/summary', VulSummary.as_view()),
+    path('vuln/summary_type', VulSummaryType.as_view()),
+    path('vuln/summary_project', VulSummaryProject.as_view()),
     #    path('vuln/list', VulSideBarList.as_view()), Departured
     path('vuln/<int:id>', VulDetail.as_view()),
     path('vuln/status', VulStatus.as_view()),
@@ -175,7 +198,8 @@ urlpatterns = [
     path('sca/summary', ScaSummary.as_view()),
     #    path('sca/list', ScaSidebarList.as_view()), Departured
     path('sca/<int:id>', ScaDetailView.as_view()),
-    path('strategys', StrategyEndpoint.as_view()),
+    path('strategys', StrategysEndpoint.as_view()),
+    path('strategy/<int:pk>', StrategyEndpoint.as_view()),
     path('strategy/<int:id>/enable', StrategyEnableEndpoint.as_view()),
     path('strategy/<int:id>/disable', StrategyDisableEndpoint.as_view()),
     path('strategy/<int:id_>/delete', StrategyDelete.as_view()),
@@ -242,7 +266,47 @@ urlpatterns = [
     path('message/list', MessagesEndpoint.as_view()),
     path('message/unread_count', MessagesNewEndpoint.as_view()),
     path('message/delete', MessagesDelEndpoint.as_view()),
+    path('vul_levels', VulLevelList.as_view()),
     #    path('message/send', MessagesSendEndpoint.as_view()),
+    path('sensitive_info_rule',
+         SensitiveInfoRuleViewSet.as_view({
+             'get': 'list',
+             'post': 'create'
+         })),
+    path(
+        'sensitive_info_rule/<int:pk>',
+        SensitiveInfoRuleViewSet.as_view({
+            'get': 'retrieve',
+            'put': 'update',
+            'delete': 'destory'
+        })),
+    path('sensitive_info_rule/pattern_type',
+         SensitiveInfoPatternTypeView.as_view()),
+    path('sensitive_info_rule/<str:pattern_type>_validation',
+         SensitiveInfoPatternValidationView.as_view()),
+    path('scan_strategy',
+         ScanStrategyViewSet.as_view({
+             'get': 'list',
+             'post': 'create'
+         })),
+    path(
+        'scan_strategy/<int:pk>',
+        ScanStrategyViewSet.as_view({
+            'get': 'retrieve',
+            'put': 'update',
+            'delete': 'destory'
+        })),
+    path('scan_strategy/<int:pk>/relationprojects',
+         ScanStrategyRelationProject.as_view()),
+    path('sensitive_info_rule/batch_update',
+         SensitiveInfoRuleBatchView.as_view()),
+    path('sensitive_info_rule/all', SensitiveInfoRuleAllView.as_view()),
+    path('scan_strategy/all', ScanStrategyAllView.as_view()),
+    path('sca_export', ScaExport.as_view()),
+    path('agent/list/ids', AgentListWithid.as_view()),
+    path('vul/list/ids', VulsListWithid.as_view()),
+    path('sca/list/ids', ScaListWithid.as_view()),
+    path('project/list/ids', ProjectListWithid.as_view()),
 ]
 if os.getenv('environment', None) in ('TEST', 'PROD'):
     # demo接口
@@ -257,5 +321,6 @@ if os.getenv('githubcount', None) in ('true', ) or os.getenv('environment', None
         path('github_contributors', GithubContributorsView.as_view()),
     ])
 
-
+urlpatterns = [path('api/v1/', include(urlpatterns))]
+urlpatterns.extend([path('api/v2/vul/recheck', VulReCheckv2.as_view())])
 urlpatterns = format_suffix_patterns(urlpatterns)
